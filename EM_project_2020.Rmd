@@ -1,0 +1,519 @@
+---
+title: Cluster analysis of Economic Freedom Index in European countries 
+author:   Mariya Hristova  
+date: "`r Sys.Date()`" 
+output: 
+  html_document: 
+    toc: true 
+    number_sections: true
+    toc_depth: 2
+    df_print: kable
+header-includes:
+- \usepackage[utf8]{inputenc}
+- \usepackage[T1]{fontenc}
+- \usepackage{textcomp}
+- \usepackage[portuguese]{babel}
+- \usepackage{dcolumn}
+geometry: margin=1in
+subtitle: Multivariate Statistics Project 
+fontsize: 12pt
+---
+
+
+```{r global_options, include=FALSE}
+knitr::opts_chunk$set(echo=FALSE, warning=FALSE, message=FALSE, comment=NA)
+```
+
+
+<style>
+body {
+text-align: justify}
+</style>
+
+\centering
+
+\thispagestyle{empty}
+
+\vspace{6in}
+
+
+\includegraphics[width=0.2\textwidth]{logofct}
+
+\raggedright
+\clearpage\thispagestyle{empty}
+\tableofcontents
+
+\newpage
+
+
+
+
+# Introduction
+
+
+Country clustering has been explored as a technique for reducing the complexity and exploring relationships between countries. Rather than examining country level indicators in isolation, clustering offers the opportunity to determine which countries are similar and explore the relationships between variables driving cluster membership.
+
+This project focuses on the clusters of european countries formed by the variables included in  Economic Freedom Index (EFI). 
+The [dataset](https://www.heritage.org/index/explore?u=637130613549367845) is publuished each year from the 
+Heritage Foundation. The data is also freely available on the website [kaggle.com](https://www.kaggle.com/lewisduncan93/the-economic-freedom-index). 
+
+The Economic Freedom Index  is a measure of the quality of economic instutiotions in each country. 
+The economic institutions are the institutions which form the regulations, laws, and policies that affect economic incentives and thus the incentives to invest in technology, physical capital, and human capital. This possibility implies that institutions are a major fundamental cause of economic growth and cross-country differences in economic performance. 
+Institutions are influenced by the historical development of a society, culture, geography, membership in political and financial unions and many other socio-economic factors. Freedom itself is an important value, and economic freedom is a vital engine for generating long-term wealth that makes possible the wide range of important economic and social achievements.
+
+The goal of the project is to determine the clusters of european countries based on the variables included in the Economic Freedom Index and try to discover the connection between economic freedom and economic performance. 
+
+
+# Data
+
+The Economic Freedom Index, published in 2019 by Wall Street Journal and Heritage Foundation, measures economic freedom based on 12 variables graded on a scale from 0 to 100 and grouped into the following four broader categories:
+
+(i) Rule of law: 1. property rights, 2. government integrity, 3. judicial effectiveness;
+(ii) Government size: 4. tax burden, 5. government spending, and 6. fiscal health;
+(iii) Regulatory efficiency: 7. business freedom, 8. labor freedom, and 9. monetary freedom; and
+(iv) Market openness: 10. trade freedom, 11. investment freedom, and 12. financial freedom.
+
+Macroeconomic variables on state level are also included in the dataset: Tariff Rate, Income.Tax.Rate, Corporate Tax Rate, Tax.Burden of GDP (Gross Domestic Product ),Government Expenditure of GDP, Population Millions, GDP in Billions PPP, GDP Growth Rate, X5 Year GDP Growth Rate (last 5 years), GDP per Capita PPP, Unemployment rate, Inflation, FDI Inflow Millions (Foreign direct investments), Public Debt of GDP. 
+
+```{r, echo= TRUE}
+
+data = read.csv("D:/Lisbon/Multivariate statistics/project/economic_freedom_index2019_data.csv",stringsAsFactors=FALSE)
+
+```
+
+```{r, message=FALSE}
+data= na.omit(data)
+data= as.data.frame(data)
+data$Unemployment.... = as.numeric(data$Unemployment....)
+data$GDP.per.Capita..PPP. = as.numeric(data$GDP.per.Capita..PPP.)
+data$GDP..Billions..PPP. = as.numeric(data$GDP..Billions..PPP.)
+data$Population..Millions. = as.numeric(data$Population..Millions.)
+data$Tariff.Rate.... <- NULL
+
+countries <- data$Country.Name
+rownames(data) <- countries
+```
+
+The project focuses only on European countries, in order to capture the differences in economic intitutions across countries.
+
+```{r, echo = FALSE}
+# Subsetting the data set
+library(dplyr)
+
+# Only Europe 
+data_europe = subset(data, Region == "Europe" )
+data_europe = as.data.frame(na.omit(data_europe))
+
+# Only EU counties
+data_eu = data %>% 
+  filter(Country.Name %in% c("Austria", "Belgium","Bulgaria","Croatia", "Cyprus", "Czech Republic", "Denmark",
+                             "Estonia", "Finland", "France", "Germany", "Greece", "Hungary", "Ireland",
+                             "Italy", "Latvia", "Lithuania", "Luxembourg",
+                             "Malta", "Netherlands", "Poland", "Portugal", 
+                             "Romania", "Slovakia", "Slovenia", "Spain", "Sweden", "United Kingdom"))
+
+countries_eu <- data_eu$Country.Name
+rownames(data_eu) <- countries_eu
+```
+
+
+Standardization of the variables is necessary, because they are measured in different units and the variances differ from each other too much. 
+
+```{r, echo= TRUE}
+data_europe_normal = data_europe #making a copy of the original data
+data_europe[,8:32] <- scale(data_europe[,8:32]) #only the numeric variables
+
+```
+
+
+Table of variables:
+
+```{r}
+library(knitr)
+library(MASS)
+colnames(data)
+```
+
+
+
+# PCA
+
+In this section I apply Principal Component Analysis (PCA) in order to reduce the data dimensionality, i.e., the number of variables. The original variables are correlated, but the principal components retained capture most of the total variability in the dataset of european countries. 
+
+
+## Testing for adequacy of data for performing PCA
+
+Principal component analysis is based on the existence of statistical association between the original variables, that means that the variables are highly correlated between each other, thus an analysis of the correlation matrix is conducted: 
+
+```{r, message = TRUE}
+###  Correlation matrix 
+library(corrplot)
+M <- cor(data_europe[8:19])
+col <- colorRampPalette(c("#BB4444", "#EE9988", "#FFFFFF", "#77AADD", "#4477AA"))
+heat_map_correlations <- corrplot(M, method = "color", col = col(200),
+                                  # type = "upper", 
+                                  order = "hclust", number.cex = .7,
+                                  addCoef.col = "black", # Add coefficient of correlation
+                                  tl.col = "black", tl.srt =45 , # Text label color and rotation
+                                  # Combine with significance
+                                  # p.mat = p.mat, sig.level = 0.01, insig = "blank", 
+                                  # hide correlation coefficient on the principal diagonal
+                                  diag = FALSE)
+
+```
+
+High bivariate correlation exists between the original variables, but it is not sufficient to make conclustions and a further analysis of the partial correlation shoud be conducted. Partial correlations are measures of bivariate linear association, removing the effect of the remaining variables. The smaller the partial correlation, the more appropriate is the data for principal component analysis. 
+
+
+Parial correlation matrix: 
+
+```{r, message= TRUE}
+#install.packages("corpcor")
+library(corpcor)
+pcor<-cor2pcor(var(data_europe[,8:19]))
+
+col <- colorRampPalette(c("#BB4444", "#EE9988", "#FFFFFF", "#77AADD", "#4477AA"))
+heat_map_correlations <- corrplot(pcor, method = "color", col = col(200),
+                                  # type = "upper", 
+                                  order = "hclust", number.cex = .7,
+                                  addCoef.col = "black", # Add coefficient of correlation
+                                  tl.col = "black", tl.srt =45 , # Text label color and rotation
+                                  # Combine with significance
+                                  # p.mat = p.mat, sig.level = 0.01, insig = "blank", 
+                                  # hide correlation coefficient on the principal diagonal
+                                  diag = FALSE)
+
+```
+
+The values of the partial correlation matrix are relatively small, so it is concluded that the data is suitable of PCA. 
+
+##Mauchley's test for sphericity:
+
+This procedure allows to test for the sphericity of the data and thus to conclude on the suitability of conducting a PCA. 
+
+```{r}
+S <- var(data_europe[, 8:19])
+
+X<-data_europe[,8:19]; p=ncol(X); n=nrow(X)
+
+U=(p^p*det(S))/(sum(diag(S))^p)
+
+U_star=-(n-1-(2*p^2+p+2)/(6*p))*log(U)
+print(paste0("U star: ", round(U_star,3)))
+
+
+u_theor <- qchisq(0.95, 77) # Chi-square distribution value with 77 degrees of freedom , 0.05 significance level 
+cat("Crtical value of  Chi-square distibution with 5% significance level:", U_star, sep="\n")
+
+p <- 1-pchisq(U_star,p*(p+1)/2-1) # we reject the null hypothesis, so the data is appropriate for PCA
+print(paste0("P-vaue: ", round(p,3)))
+
+```
+
+In this case we reject the null hypothesis for 5% significance level , e.g the data is appropriate for PCA. 
+
+## Performing Principal Component Analysis
+```{r, echo= TRUE}
+### PCA analysis 
+library(stats)
+pca<-prcomp(x = data_europe[,8:19],scale. = TRUE) # standartizing the data 
+summary(pca)
+ 
+
+```
+
+## Choosing the number of principal components
+
+```{r}
+screeplot(pca,type = "l",main="Scree plot")
+
+#eigenvectors 
+S= var(data_europe[,8:19])
+
+eigen(S)$values # for stndardized values Kaiser's criterion: above 1
+```
+
+The scree plot shows the number of the ordered eigenvalues from largest to smallest on the x axis and the magnitude of the eigenvalue on the y axis.  There exists a so-called "elbow" at the fourth principal component.
+
+Kaiser's criterion is another method for choosing the optimal number of principal components. 
+For standartized variables  the eigenvalues should be above 1, e.g the first four components.
+Further cluster analysis would be based on four principal compoents, instead of the original variables. They retain approximately 85%  of the cumulative proportion of the variance. 
+
+The relationship between the initial variables and the principal components are given by: 
+
+```{r}
+round(pca$rotation,3)[,1:4]
+```
+
+The first principal component represents most the variables, which describe the rule of law in each country. The highest coefficients are of property rights, government integrity, investment freedom and judical effectiveness. 
+
+The second and third principal component respresent each original variable with no noticable group of variables, which prevails. The forth principal component is dominated by the fiscal health variable. 
+
+## Biplots
+
+A biplot, which includes both the position of each country in terms of the principal componets and it also shows how the initial variables map onto this. It allows us to visualize how the observations differ from each other based, if there are any groups formed and how different principal components discriminate the observations.  It simultaneously reveals how each original variable contribites to the PC based on the length of the vectors. 
+
+
+
+```{r}
+par(mfrow=c(1,2))
+biplot(pca,cex=0.6, choices=c(1,2))
+biplot(pca,cex=0.6, choices=c(1,4))
+par(mfrow=c(1,1))
+```
+
+```{r}
+par(mfrow=c(1,2))
+#biplot(pca,cex=0.6, choices=c(1,3))
+biplot(pca,cex=0.6, choices=c(2,3))
+biplot(pca,cex=0.6, choices=c(2,4))
+par(mfrow=c(1,1))
+
+```
+
+# Hierarchical clustering 
+
+Cluster analysis is used to find groups which contain data with similar patterns, without existing previous information on the clusters. The hierarchical clustering consists of building a hierarchical structure, visualized by a dendrogram. I use the Ward minimization distance algorithm, based on the decomposition of the total variance in intra-class variance and inter-class variance. The more homogeneous the clusters, the lower the intra-class variance and the higher the inter-class variance.
+
+```{r, message=FALSE}
+library(FactoMineR)
+# Compute PCA with ncp = 4
+res.pca <- PCA(data_europe[,8:19], ncp = 4, graph = FALSE)
+# Compute hierarchical clustering on principal components
+res.hcpc <- HCPC(res.pca, graph = FALSE, nb.clust = 3, metric="euclidean", method="ward")
+
+```
+
+## Dendrogram: 
+
+In hierarchical clustering, the objects are categorized into a hierarchical structure similar to a tree-like diagram called a dendrogram. The distance of split or merge between the different countries is shown on the y-axis of the dendrogram below: 
+
+```{r}
+library(factoextra)
+# Dendrogram
+fviz_dend(res.hcpc, 
+          cex = 0.7,                          
+          palette = rainbow(3),               
+          rect = TRUE, rect_fill = TRUE,     
+          rect_border = rainbow(3),           
+          labels_track_height = 0.8 ,         
+          label_cols = "black"
+)
+
+```
+
+
+## Results  
+
+The largest difference between gropus appear, when the number of clusters is 3. The three clusters are as follows: 
+
+**Cluster 1:** Ireland, Switzerland, Luxembourg, Estonia, Iceland, United Kingdom, Denmark, Norway, Finland, Sweden, Germany, Austria, Netherlands 
+
+**Cluster 2:** Moldova, Serbia, Turkey, Ukraine, Belarus, Russia 
+
+**Cluster 3:**  Cyprus, Malta, Slovakia, Hungary, Poland, ,Bosnia and Herzegovina, Albania, Romania, Bulgaria, Georgia, Latvia, Armenia, Northern  Macedonia, Montenegro, France, Belgium, Greecem Croatia, Spain, Italy, Slovenia, Portugal  
+
+The  cluster with the most observations is the third one, which is composed mostly of countries in Eastern and Central Europe, which are members of the European union. The countries in the first cluster are developed countries with high standard of living in Western and Northern Europe. The smallest cluster consists of Eastern European countries, which are not members of the European union. 
+
+When we look at the dendogram more closely, we notice that the countries which are the closest to each other share geograpgical, economic and political similarities. 
+
+
+# K-means algorithm 
+
+K-means is a centroid-based clustering algorithm. The clusters are represented by a central vector or a centroid, which is a point at the center of each cluster. The similarity between observations and the membership to a cluster is derived by how close a data point is to the centroid of the cluster.
+
+```{r, echo = FALSE}
+set.seed(1)
+# Creating the principal components 
+pc <- prcomp(data_europe[,8:19])
+comp <- data.frame(pc$x[,1:4])
+
+# k means analysis based on the principal components 
+fitkm2  = kmeans(comp, centers=2)
+fitkm3  = kmeans(comp, centers=3)
+fitkm4  = kmeans(comp, centers=4)
+fitkm5  = kmeans(comp, centers=5)
+fitkm6  = kmeans(comp, centers=6)
+
+```
+
+Determining the optimal number of clusters based on the weighted sum of squares and the Silhouette score:  
+
+```{r}
+# Determine the correct number of clusters via weighted sum of squares
+
+wss <- (nrow(comp)-1)*sum(apply(comp,2,var))
+for (i in 2:6) wss[i] <- sum(kmeans(comp, centers=i, nstart=100, iter.max=1000)$withinss)
+plot(1:6, wss, type="b", xlab="Number of Clusters",
+     ylab="Within groups sum of squares")
+```
+
+In this method the form of groups is based on minimizing the heterogeneity within the clusters. Thus, the clusters grouped are those that allow the minimization of the intra-group variability, e.g. Within Sum of Squares
+Clusters with a small sum of squares ire more compact than clusters that have a large sum of squares. In this graph, there is an "elbow" point at k=3. 
+
+```{r}
+# Silhuette score 
+df <- data_europe[,8:19]
+set.seed(1); library(cluster)
+sil <- rep(0, 6)
+for(i in 2:6){
+  km.res <- kmeans(df, centers = i, nstart = i)
+  ss <- silhouette(km.res$cluster, dist(df))
+  sil[i] <- mean(ss[, 3])}
+plot(1:6, sil, type = "b", pch = 19, frame = FALSE, xlab = "Number of clusters")
+abline(v = which.max(sil), lty = 2)
+
+```
+
+
+The average silhouette approach determines how well each country lies within its cluster.  The silhouette score for the clustering is a value ranging from -1 to 1. The higher value, the more the distance between clusters there is and it indicates a good seperation of clusters. 
+
+Average silhouette method computes the average silhouette score of observations for different values of k, in this case from to 2 to 6. The optimal number of clusters k is the one that maximizes the average silhouette score over the range of possible values of k. The vertical line shows that the maximum average silhouette score is at k=3. 
+
+
+## Clusters based on k-means clustering algorithm
+
+###  Number of clusters k=2
+
+On the next graph, we can see a clear difference between the cluster of Eastern and Central Europe and the cluster of Western Europe. The first cluster includes only post-socialist  countries, Turkey, Greece and Malta.  
+The "freedom gap" between the two groups shows that the reforms to transition from socialist economy to market economy are still taking place and have a influence on the current economic institutions.  
+
+```{r}
+
+library(ggplot2)
+library(factoextra)
+
+kplot2 <- fviz_cluster(fitkm2,data=data_europe[,8:19]) + ggtitle("k = 2")
+kplot2
+
+
+```
+
+
+
+### Number of clusters k=3
+
+The next graph shows the countries divided into three clusters, which is the optimal number of clusters in this case. Here the clusters include the following countries: 
+
+**Cluster 1 : ** Albania, Armenia, Bulgaria, Czech Republic, Latvia, Lithuania,  Poland, Hungary, Bosnia and Herzegovina, Slovakia, Cyprus, Spain, Montenegro, Croatia, Malta, Italy
+
+**Cluster 2 : ** Ireland, Switzerland, Estonia, Luxembourg, Portugal, Germany, Iceland, Denmark, Sweden, Finland, United Kingdom, Netherlands, Belgium, France, Serbia, Turkey, Greece 
+
+
+**Cluster 3 :**  Moldova, Ukraine, Russia, Belarus
+
+```{r}
+kplot3 <- fviz_cluster(fitkm3,data=data_europe[,8:19]) + ggtitle("k = 3")
+kplot3
+
+```
+
+A new cluster forms with Eastern European countries, non-members  of the European union, which could be explained by the different institutions, rules and laws, which influence the economic freedom. The members of the European Union have share common laws and institutions, which converge with time. 
+
+# The relationship between economic freedom and economic performance 
+
+Comparing the clusters based on the Economic Freedom Index and the measure of economic performance Gross Domestic Product (GDP) per purchasing power parity (PPP), in current international dollars for 2019. 
+
+ GDP itself is the primary measure of a country's economic productivity that shows the market value of all goods and services produced during a certain time period. It is a commonly used measure for economic performance. 
+
+GDP per capita shows how much economic production value can be attributed to each individual citizen. Alternatively, this translates to a measure of national wealth since GDP value per person serves as a prosperity measure.
+
+
+
+```{r}
+cluster_label = c(fitkm3$cluster)
+data_europe = cbind(data_europe, cluster_label)
+
+data_europe[,1:33] %>%
+  ggplot(aes(x=reorder(Country.Name, GDP.per.Capita..PPP.), GDP.per.Capita..PPP.), group=as.factor(data_europe[,33]))+
+  geom_point(shape = 16,aes(y = GDP.per.Capita..PPP., colour=as.factor(data_europe[,33]) ,size = 1))+
+  #geom_point(shape = 17, aes(y = Unemployment...., colour=as.factor(data_europe[,33]),size = 1))+
+  #geom_point(shape=18,aes(y = data_europe$X5.Year.GDP.Growth.Rate...., colour = as.factor(data_europe[,33]),size = 1))+
+ # geom_point(shape=4,aes(y = data_europe$Public.Debt....of.GDP., colour = as.factor(data_europe[,33]),size = 1))+
+  theme(axis.text.x = element_text(angle = 45))+
+  theme(legend.position="bottom")+
+  labs(x = "GDP per capita PPP")
+  
+#scale_y_continuous(breaks=seq(0, 100000, 5000))
+
+```
+
+
+As depicted on the graph, it is clear that greater economic freedom is strongly correlated with higher GDP per capita (PPP).  
+
+Counties in cluster 3, which are associated with greater economic freedom have as well a higher GDP per capita. 
+The exceptions are Portugal and Poland, which do not perform as economically well as expected based on their cluster membership. 
+
+Greece and Montenegro are the other exeptions in cluster 2, which have a better economic performance as expected, one possible explanation could be that both economies are highly dependent on the tourism industry. 
+
+## Centroids of Economic Freedom Index variables 
+
+The following table shows the mean values of all the variables for each cluster, included in the Economic Freedom Index. 
+
+
+```{r}
+cluster_label = c(fitkm3$cluster)
+data_europe_normal = cbind(data_europe_normal, cluster_label)
+
+cluster1 <- data_europe_normal%>% 
+  filter(cluster_label == 1)
+Cluster_1  <- colMeans(cluster1[,8:19])
+
+cluster2 <- data_europe_normal%>% 
+  filter(cluster_label == 2)
+Cluster_2  <- colMeans(cluster2[,8:19])
+
+cluster3 <- data_europe_normal%>% 
+  filter(cluster_label == 3)
+Cluster_3  <- colMeans(cluster3[8:19])
+
+
+round(cbind(Cluster_1 , Cluster_2 , Cluster_3 ),0)
+
+
+```
+
+## Economic variables of different clusters 
+
+The following table shows the mean values of all economic variables for each cluster, included in the dataset. 
+
+```{r}
+#cluster_label = c(fitkm3$cluster)
+#data_europe_normal = cbind(data_europe_normal, cluster_label)
+
+cluster1 <- data_europe_normal%>% 
+  filter(cluster_label == 1)
+Cluster_1  <- colMeans(cluster1[,20:32])
+
+cluster2 <- data_europe_normal%>% 
+  filter(cluster_label == 2)
+Cluster_2  <- colMeans(cluster2[,20:32])
+
+cluster3 <- data_europe_normal%>% 
+  filter(cluster_label == 3)
+Cluster_3  <- colMeans(cluster3[,20:32])
+
+
+round(cbind(Cluster_1 , Cluster_2 , Cluster_3 ),0)
+
+```
+
+Clear differences, which can help us differentiate between the clusters, occur in GDP per capita, the growth rate in the last 5 years, 
+unemployment, inflation and foreign direct investments inflow (FDI.Inflow..Millions.  ). 
+
+# Conclusions 
+
+Economic freedom matters, today's more developed economies in Europe have adopted economic policies which make them score high in the Economic Freedom index. A clear gap between Eastern and Western Europe exists, which could be explained by the institutional differences. Membership in the European Union is associated with more economic freedom and better economic achievement. 
+
+The cluster analysis based on principal components in this project could be used for further research on the  relationship between economic freedom and economic performance. 
+
+
+# References
+
+Acemoglu, D. (2009). Introduction to modern economic growth. Princton University Press
+Miller T. , Kim A., Roberts J. (2019), 2019 Index of economic freedom, The Heritage Foundation 
+Kinnunen, J., Georgescu, I., & Tamminen, L. Do economic freedoms create national wealth?. In Real Option Workshop (p. 13).
+Johnson, R. and Wichern, D. W. (2007), Applied Multivariate Statistical Analysis, 6th Edition,
+Prentice Hall, New Jersey
+Georgescu, I., Androniceanu, A., & Kinnunen, J. A Computational Analysis Of Economic Freedom Indicators and GDP in EU states. 
+
